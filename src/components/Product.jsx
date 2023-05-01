@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import * as XLSX from 'xlsx';
 
 import Navbar from "./Navbar";
 
@@ -38,6 +39,8 @@ function Product(props) {
       const jsonResult = await result.json();
       if (jsonResult?.data) {
         setReviews(jsonResult.data);
+
+        return jsonResult.data
       }
     } catch (e) {
       console.log(e);
@@ -122,6 +125,49 @@ function Product(props) {
 
   const [quantity, setQuantity] = useState(1);
 
+  // REPORT GENERATION
+  function generateExcelReport(data, sheetName, fileName) {
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    const excelData = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelData], { type: 'application/octet-stream' });
+
+    const dataUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `${fileName}.xlsx`;
+    
+    link.click();
+  }
+
+  function filterReviewsByDate(reviews, startDate, endDate) {
+    const filteredReviews = reviews.filter((review) => {
+      const timestamp = new Date(review.timestamp);
+      startDate = new Date(startDate);
+      endDate = new Date(endDate);
+
+      return timestamp >= startDate && timestamp <= endDate;
+    });
+
+    return filteredReviews;
+  }
+
+  const downloadReviewsReport = async (event) => {
+    event.preventDefault();
+    const startDate = document.getElementById('startDate')
+    const endDate = document.getElementById('endDate')
+
+    if (startDate.value && endDate.value) {
+      const reviews = await getReviews();
+      const filteredReviews = filterReviewsByDate(reviews, startDate.value, endDate.value);
+
+      generateExcelReport(filteredReviews, 'User Product Reviews', 'reviews_report')
+    } else {
+      toast.error("Select Start and End Date!");
+    }
+  }
+
   return (
     <div>
       <Navbar url={url} />
@@ -192,7 +238,27 @@ function Product(props) {
               className="reviewsDiv div"
               style={{ padding: "20px", marginBottom: "30px" }}
             >
-              <h1 className="navStyle">Reviews:</h1>
+              <div class="header">
+                <form>
+                  <h1 class="navStyle">Reviews Report</h1>
+
+                  <div class="form-row">
+                    <div class="form-group col-md-6">
+                      <label for="startDate">Start Date</label>
+                      <input type="datetime-local" class="form-control" id="startDate" placeholder="Start Date" />
+                    </div>
+                    <div class="form-group col-md-6 mt-3">
+                      <label for="endDate">End Date</label>
+                      <input type="datetime-local" class="form-control" id="endDate" placeholder="End Date" />
+                    </div>
+                  </div>
+                  <button class="reviewsButton btn btn-primary mt-3 mb-4" onClick={downloadReviewsReport} type="submit">
+                    Reviews <i class="fas fa-download"></i>
+                  </button>
+                </form>
+              </div>
+
+              <h1 class="navStyle">Reviews</h1>
               {reviews.map((review, idx) => {
                 return (
                   <div key={idx} className="reviewsDiv">
